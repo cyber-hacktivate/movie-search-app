@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie & Show Search (TMDB)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a202c; /* A dark, charcoal-like background */
+            background-image: url('https://storage.googleapis.com/gweb-uniblog-publish-prod/images/Gemini_1.5_Hero_Image_2.0.width-1300.png');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+        #app-container {
+             background: rgba(0, 0, 0, 0.6);
+             backdrop-filter: blur(10px);
+             -webkit-backdrop-filter: blur(10px);
+        }
+        #results-container .result-card {
+            position: relative;
+            z-index: 1;
+            background-size: cover;
+            background-position: center;
+            overflow: hidden;
+            border: 2px solid white; /* Added white border */
+        }
+        #results-container .result-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6); /* 60% opacity overlay for readability */
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            z-index: -1;
+        }
+        .search-item:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+        }
+        .text-neon-blue {
+            color: #4dc0b5;
+        }
+        .bg-neon-blue {
+            background-color: #4dc0b5;
+        }
+    </style>
+    <!-- html2canvas for screenshot functionality -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+
+    <div id="app-container" class="w-full h-screen max-w-xl flex flex-col justify-center items-center p-6 text-white text-center">
+        <h1 class="text-3xl font-extrabold mb-6 drop-shadow-lg text-neon-blue">Movie/Show Finder</h1>
+
+        <!-- Search Input and Button at the top -->
+        <div class="flex w-full mb-4 gap-2 relative">
+            <input
+                type="text"
+                id="search-input"
+                placeholder="Enter movie or show name..."
+                class="flex-1 p-3 bg-white/10 rounded-lg border border-white/20 focus:outline-none focus:ring-2 focus:ring-neon-blue placeholder-white/50 text-white"
+            />
+            <button
+                id="search-button"
+                class="bg-neon-blue text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-teal-500 transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-neon-blue"
+            >
+                Search
+            </button>
+            <div id="search-results-list" class="absolute top-full left-0 mt-2 w-full">
+                <!-- Search results list will be injected here -->
+            </div>
+        </div>
+
+        <!-- Main Poster Result Container -->
+        <div id="results-container" class="w-full max-h-full overflow-y-auto">
+            <!-- Detailed view will be injected here -->
+        </div>
+
+        <!-- Message/Loading Container -->
+        <div id="message-container" class="text-lg text-white font-medium mt-4">
+            <!-- Messages or loading indicator will be shown here -->
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const searchInput = document.getElementById('search-input');
+            const searchButton = document.getElementById('search-button');
+            const resultsContainer = document.getElementById('results-container');
+            const messageContainer = document.getElementById('message-container');
+            const searchResultsList = document.getElementById('search-results-list');
+
+            const apiKey = "0e95fcb650e60ceb8020debb9780d48e"; 
+            const tmdbSmallImageUrl = "https://image.tmdb.org/t/p/w92"; // Small size for search list
+            const tmdbLargeImageUrl = "https://image.tmdb.org/t/p/w500"; // Large size for poster
+            const tmdbBackdropUrl = "https://image.tmdb.org/t/p/original";
+            const placeholderPosterUrl = 'https://placehold.co/92x138/1e293b/d1d5db?text=N/A';
+            const placeholderBackdropUrl = 'https://placehold.co/1280x720/1e293b/d1d5db?text=Backdrop+Not+Found';
+            
+            async function fetchSearchResults(title) {
+                if (!apiKey) {
+                    displayMessage("API key is not available. Please add a valid key.");
+                    return;
+                }
+                
+                searchResultsList.innerHTML = '';
+                displayMessage("Searching for information...");
+
+                try {
+                    const response = await fetch(`https://api.themoviedb.org/3/search/multi?query=${encodeURIComponent(title)}&api_key=${apiKey}&language=en-US`);
+                    
+                    if (response.status === 401) {
+                         displayMessage("Authentication failed. Please check your TMDB API key.");
+                         console.error('API Error: 401 Unauthorized. Check your API key.');
+                         return;
+                    }
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    
+                    if (data.results && data.results.length > 0) {
+                        displaySearchResults(data.results);
+                    } else {
+                        displayMessage("No results found.");
+                    }
+                } catch (error) {
+                    console.error('Fetching error:', error);
+                    displayMessage("There was a problem fetching the information. Check your network or API key.");
+                }
+            }
+
+            function displaySearchResults(results) {
+                messageContainer.innerHTML = '';
+                let searchListHtml = `<div class="p-4 bg-white/10 max-h-80 overflow-y-auto rounded-lg">`;
+                results.forEach(item => {
+                    if (item.media_type === 'movie' || item.media_type === 'tv') {
+                        const title = item.title || item.name;
+                        const year = item.release_date ? item.release_date.substring(0, 4) : (item.first_air_date ? item.first_air_date.substring(0, 4) : 'N/A');
+                        const posterPath = item.poster_path ? `${tmdbSmallImageUrl}${item.poster_path}` : placeholderPosterUrl;
+                        
+                        searchListHtml += `
+                            <div class="search-item flex items-center gap-4 text-left p-2 border-b border-white/20 last:border-b-0" data-id="${item.id}" data-media-type="${item.media_type}">
+                                <img src="${posterPath}" alt="${title} Poster" class="w-12 h-18 rounded-sm">
+                                <div class="flex-1">
+                                    <p class="font-bold">${title}</p>
+                                    <p class="text-sm text-gray-300">(${year}) - ${item.media_type === 'movie' ? 'Movie' : 'TV Show'}</p>
+                                </div>
+                            </div>
+                        `;
+                    }
+                });
+                searchListHtml += `</div>`;
+                searchResultsList.innerHTML = searchListHtml;
+
+                document.querySelectorAll('.search-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const id = item.dataset.id;
+                        const mediaType = item.dataset.mediaType;
+                        if (id && mediaType) {
+                            fetchDetailsByTMDBId(id, mediaType);
+                            searchResultsList.innerHTML = ''; // Clear the search list after selection
+                        }
+                    });
+                });
+            }
+
+            async function fetchDetailsByTMDBId(id, mediaType) {
+                resultsContainer.innerHTML = '';
+                displayMessage("Fetching details...");
+
+                try {
+                    let response = await fetch(`https://api.themoviedb.org/3/${mediaType}/${id}?api_key=${apiKey}&language=en-US`);
+                    
+                    if (response.status === 401) {
+                         displayMessage("Authentication failed. Please check your TMDB API key.");
+                         console.error('API Error: 401 Unauthorized. Check your API key.');
+                         return;
+                    }
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    let data = await response.json();
+                    
+                    if (data) {
+                        data.media_type = mediaType;
+                        displayMovieResult(data);
+                    } else {
+                        displayMessage("Details not available.");
+                    }
+                } catch (error) {
+                    console.error('Fetching error:', error);
+                    displayMessage("There was a problem fetching the details. Check your network or API key.");
+                }
+            }
+
+            function formatRuntime(runtime) {
+                if (!runtime || runtime === 0) return 'N/A';
+                const minutes = parseInt(runtime);
+                if (isNaN(minutes)) return runtime;
+                
+                const hours = Math.floor(minutes / 60);
+                const remainingMinutes = minutes % 60;
+                
+                let formattedString = '';
+                if (hours > 0) {
+                    formattedString += `${hours}h`;
+                }
+                if (remainingMinutes > 0 || hours > 0) {
+                    if (hours > 0) formattedString += ' ';
+                    formattedString += `${remainingMinutes}min`;
+                }
+                
+                return formattedString.trim() || 'N/A';
+            }
+
+            function displayMovieResult(item) {
+                messageContainer.innerHTML = '';
+                
+                const posterPath = item.poster_path ? `${tmdbLargeImageUrl}${item.poster_path}` : placeholderPosterUrl;
+                const backdropPath = item.backdrop_path ? `${tmdbBackdropUrl}${item.backdrop_path}` : placeholderBackdropUrl;
+                
+                const title = item.title || item.name;
+                const releaseDate = item.release_date || item.first_air_date || 'N/A';
+                const plot = item.overview || 'No plot description available.';
+                
+                let detailsHtml = '';
+                if (item.media_type === 'movie') {
+                    const formattedRuntime = formatRuntime(item.runtime);
+                    detailsHtml = `<p class="text-base text-gray-200 mb-4">
+                                    <span class="font-extrabold">Runtime:</span> ${formattedRuntime}
+                                </p>`;
+                } else if (item.media_type === 'tv') {
+                    const totalSeasons = item.number_of_seasons || 'N/A';
+                    const totalEpisodes = item.number_of_episodes || 'N/A';
+                    detailsHtml = `<p class="text-base text-gray-200 mb-4">
+                                    <span class="font-extrabold">Total Seasons:</span> ${totalSeasons} |
+                                    <span class="font-extrabold">Total Episodes:</span> ${totalEpisodes}
+                                </p>`;
+                }
+
+                resultsContainer.innerHTML = `
+                    <div id="poster-card" class="result-card p-4 shadow-lg border-white border" style="background-image: url('${backdropPath}')">
+                        <!-- Poster -->
+                        <div class="w-72 h-auto overflow-hidden rounded-lg border border-white shadow-2xl mb-4 mx-auto">
+                            <img src="${posterPath}" alt="${title} Poster" class="w-full h-full object-cover" crossorigin="anonymous">
+                        </div>
+                        
+                        <!-- Details -->
+                        <div class="w-full">
+                            <h2 class="text-2xl font-extrabold mb-2">${title}</h2>
+                            <p class="text-sm text-gray-300 mb-2">
+                                <span class="font-extrabold">Released:</span> ${releaseDate}
+                                <span class="mx-2">|</span>
+                                <span class="font-extrabold">Type:</span> ${item.media_type === 'movie' ? 'Movie' : 'TV Show'}
+                            </p>
+                            
+                            <!-- Type-specific details -->
+                            ${detailsHtml}
+                            
+                            <p class="text-sm text-gray-300 leading-snug">
+                                <span class="font-extrabold block mb-1">Plot:</span> ${plot}
+                            </p>
+
+                            <!-- Gemini API Feature: Suggest Similar Titles -->
+                            <div id="suggestions-container" class="mt-4 text-left"></div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col sm:flex-row gap-4 mt-4">
+                        <button id="download-button" class="bg-neon-blue text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-teal-500 transition duration-300">
+                            Download Poster
+                        </button>
+                        <button id="suggest-button" class="bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            ✨ Suggest Similar Titles
+                        </button>
+                    </div>
+                `;
+                
+                // Add event listener for download button
+                document.getElementById('download-button').addEventListener('click', () => {
+                    const posterCard = document.getElementById('poster-card');
+                    if (posterCard) {
+                        downloadPoster(posterCard, title);
+                    }
+                });
+
+                // Add event listener for Gemini API button
+                document.getElementById('suggest-button').addEventListener('click', () => {
+                    generateSimilarTitles(title, item.media_type);
+                });
+            }
+
+            // Gemini API function to generate similar titles
+            async function generateSimilarTitles(title, mediaType) {
+                const suggestButton = document.getElementById('suggest-button');
+                const suggestionsContainer = document.getElementById('suggestions-container');
+                suggestButton.disabled = true;
+                suggestButton.innerHTML = '✨ Generating...';
+                suggestionsContainer.innerHTML = '';
+
+                try {
+                    const prompt = `Suggest 5 ${mediaType === 'movie' ? 'movies' : 'TV shows'} similar to "${title}". Provide only the titles, separated by commas.`;
+                    
+                    let chatHistory = [];
+                    chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+                    const payload = { contents: chatHistory };
+                    const geminiApiKey = ""
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${geminiApiKey}`;
+
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    const result = await response.json();
+
+                    if (result.candidates && result.candidates.length > 0 &&
+                        result.candidates[0].content && result.candidates[0].content.parts &&
+                        result.candidates[0].content.parts.length > 0) {
+                        
+                        const text = result.candidates[0].content.parts[0].text;
+                        const titles = text.split(',').map(t => t.trim());
+                        let titlesHtml = `<p class="font-bold mb-2">Similar Titles:</p>`;
+                        titles.forEach(t => {
+                            titlesHtml += `<p>- ${t}</p>`;
+                        });
+                        suggestionsContainer.innerHTML = titlesHtml;
+                    } else {
+                        suggestionsContainer.innerHTML = `<p class="text-red-400">Could not generate suggestions.</p>`;
+                    }
+                } catch (error) {
+                    console.error('Gemini API Error:', error);
+                    suggestionsContainer.innerHTML = `<p class="text-red-400">An error occurred while fetching suggestions.</p>`;
+                } finally {
+                    suggestButton.disabled = false;
+                    suggestButton.innerHTML = '✨ Suggest Similar Titles';
+                }
+            }
+
+            // Function to handle the screenshot and download
+            async function downloadPoster(element, filename) {
+                // Temporarily hide the buttons and other elements you don't want in the screenshot
+                const buttons = document.querySelectorAll('.flex.gap-4.mt-4');
+                buttons.forEach(button => button.style.display = 'none');
+            
+                // Create a temporary, full-size clone of the element to capture
+                const tempElement = document.createElement('div');
+                tempElement.className = element.className;
+                tempElement.style.cssText = element.style.cssText;
+                tempElement.innerHTML = element.innerHTML;
+                
+                document.body.appendChild(tempElement);
+            
+                html2canvas(tempElement, {
+                    useCORS: true,
+                    backgroundColor: null,
+                    scale: 2, // Use a higher scale for better resolution
+                }).then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = `${filename}_poster.png`;
+                    link.href = canvas.toDataURL('image/png');
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+            
+                    // Clean up: remove the temporary element and show original buttons
+                    document.body.removeChild(tempElement);
+                    buttons.forEach(button => button.style.display = 'flex');
+                }).catch(err => {
+                    console.error('Error during download:', err);
+                    alert('Error downloading poster. Please try again.');
+                    // Ensure buttons are shown even if there's an error
+                    buttons.forEach(button => button.style.display = 'flex');
+                    document.body.removeChild(tempElement);
+                });
+            }
+
+
+            function displayMessage(message) {
+                messageContainer.innerHTML = `<p class="text-lg text-gray-400 font-medium">${message}</p>`;
+                resultsContainer.innerHTML = '';
+            }
+
+            searchButton.addEventListener('click', () => {
+                const title = searchInput.value.trim();
+                if (title) {
+                    fetchSearchResults(title);
+                } else {
+                    displayMessage("Please enter a title.");
+                }
+            });
+
+            searchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    searchButton.click();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+
