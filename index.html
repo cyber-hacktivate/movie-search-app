@@ -4,40 +4,30 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Movie & Show Search (TMDB)</title>
-
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap');
-
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #1a202c;
+            background-color: #1a202c; /* A dark, charcoal-like background */
             background-image: url('https://storage.googleapis.com/gweb-uniblog-publish-prod/images/Gemini_1.5_Hero_Image_2.0.width-1300.png');
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
-            color: white;
         }
-
         #app-container {
-            background: rgba(0, 0, 0, 0.7);
-            backdrop-filter: blur(12px);
-            border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+             background: rgba(0, 0, 0, 0.6);
+             backdrop-filter: blur(10px);
+             -webkit-backdrop-filter: blur(10px);
         }
-
         #results-container .result-card {
             position: relative;
             z-index: 1;
             background-size: cover;
             background-position: center;
             overflow: hidden;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-radius: 12px;
+            border: 2px solid white; /* Added white border */
         }
-
         #results-container .result-card::before {
             content: '';
             position: absolute;
@@ -45,40 +35,29 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: linear-gradient(135deg, rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.4));
-            backdrop-filter: blur(6px);
-            -webkit-backdrop-filter: blur(6px);
+            background-color: rgba(0, 0, 0, 0.6); /* 60% opacity overlay for readability */
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
             z-index: -1;
         }
-
-        .search-item {
-            transition: background-color 0.2s ease;
-        }
-
         .search-item:hover {
             background-color: rgba(255, 255, 255, 0.1);
             cursor: pointer;
         }
-
         .text-neon-blue {
             color: #4dc0b5;
         }
-
         .bg-neon-blue {
             background-color: #4dc0b5;
         }
-
-        .placeholder {
-            color: #6b7280;
-        }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
-<body class="flex items-center justify-center min-h-screen p-4">
+<body class="flex items-center justify-center min-h-screen">
 
-    <div id="app-container" class="w-full max-w-xl flex flex-col justify-center items-center p-6 text-white text-center">
+    <div id="app-container" class="w-full h-screen max-w-xl flex flex-col justify-center items-center p-6 text-white text-center">
         <h1 class="text-3xl font-extrabold mb-6 drop-shadow-lg text-neon-blue">Movie/Show Finder</h1>
 
-        <!-- Search Input and Button -->
         <div class="flex w-full mb-4 gap-2 relative">
             <input
                 type="text"
@@ -92,14 +71,16 @@
             >
                 Search
             </button>
-            <div id="search-results-list" class="absolute top-full left-0 mt-2 w-full z-10 hidden"></div>
+            <div id="search-results-list" class="absolute top-full left-0 mt-2 w-full">
+                </div>
         </div>
 
-        <!-- Results Container -->
-        <div id="results-container" class="w-full max-h-[60vh] overflow-y-auto"></div>
+        <div id="results-container" class="w-full max-h-full overflow-y-auto">
+            </div>
 
-        <!-- Message Container -->
-        <div id="message-container" class="text-lg text-gray-300 font-medium mt-4"></div>
+        <div id="message-container" class="text-lg text-white font-medium mt-4">
+            </div>
+
     </div>
 
     <script>
@@ -110,259 +91,312 @@
             const messageContainer = document.getElementById('message-container');
             const searchResultsList = document.getElementById('search-results-list');
 
-            const apiKey = "09ad067033cfea8dfc1134a7ede8a658"; // Replace with your TMDB API key
-            const tmdbSmallImageUrl = "https://image.tmdb.org/t/p/w92";
-            const tmdbLargeImageUrl = "https://image.tmdb.org/t/p/w500";
-            const tmdbOriginalImageUrl = "https://image.tmdb.org/t/p/original"; // For full-sized poster download
+            const apiKey = "09ad067033cfea8dfc1134a7ede8a658"; 
+            const tmdbSmallImageUrl = "https://image.tmdb.org/t/p/w92"; // Small size for search list
+            const tmdbLargeImageUrl = "https://image.tmdb.org/t/p/w500"; // Large size for poster
             const tmdbBackdropUrl = "https://image.tmdb.org/t/p/original";
             const placeholderPosterUrl = 'https://placehold.co/92x138/1e293b/d1d5db?text=N/A';
             const placeholderBackdropUrl = 'https://placehold.co/1280x720/1e293b/d1d5db?text=Backdrop+Not+Found';
-
+            
             async function fetchSearchResults(title) {
-                if (!title.trim()) {
-                    displayMessage("Please enter a title.");
-                    return;
-                }
                 if (!apiKey) {
-                    displayMessage("API key is missing. Please add a valid TMDB API key.");
+                    displayMessage("API key is not available. Please add a valid key.");
                     return;
                 }
-
-                toggleSearchResults(false);
-                displayMessage("Searching...");
+                
+                searchResultsList.innerHTML = '';
+                displayMessage("Searching for information...");
 
                 try {
-                    const response = await fetch(
-                        `https://api.themoviedb.org/3/search/multi?query=${encodeURIComponent(
-                            title
-                        )}&api_key=${apiKey}&language=en-US`
-                    );
-
+                    const response = await fetch(`https://api.themoviedb.org/3/search/multi?query=${encodeURIComponent(title)}&api_key=${apiKey}&language=en-US`);
+                    
                     if (response.status === 401) {
-                        displayMessage("❌ Unauthorized. Check your TMDB API key.");
-                        return;
+                         displayMessage("Authentication failed. Please check your TMDB API key.");
+                         console.error('API Error: 401 Unauthorized. Check your API key.');
+                         return;
+                    }
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
                     }
 
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
                     const data = await response.json();
-
+                    
                     if (data.results && data.results.length > 0) {
-                        const filtered = data.results.filter(
-                            (item) => item.media_type === 'movie' || item.media_type === 'tv'
-                        );
-                        if (filtered.length > 0) {
-                            displaySearchResults(filtered);
-                        } else {
-                            displayMessage("No movies or shows found.");
-                        }
+                        displaySearchResults(data.results);
                     } else {
                         displayMessage("No results found.");
                     }
                 } catch (error) {
-                    console.error('Search error:', error);
-                    displayMessage("Failed to fetch results. Check network or API key.");
+                    console.error('Fetching error:', error);
+                    displayMessage("There was a problem fetching the information. Check your network or API key.");
                 }
             }
 
             function displaySearchResults(results) {
                 messageContainer.innerHTML = '';
-                let html = `<div class="bg-white/10 backdrop-blur-md rounded-lg shadow-lg overflow-hidden">`;
+                let searchListHtml = `<div class="p-4 bg-white/10 max-h-80 overflow-y-auto rounded-lg">`;
                 results.forEach(item => {
-                    const title = item.title || item.name;
-                    const year = item.release_date?.split('-')[0] ||
-                                 item.first_air_date?.split('-')[0] || 'N/A';
-                    const poster = item.poster_path
-                        ? `${tmdbSmallImageUrl}${item.poster_path}`
-                        : placeholderPosterUrl;
-
-                    html += `
-                        <div class="search-item flex items-center gap-4 p-3 border-b border-white/10 last:border-b-0 hover:bg-white/5"
-                             data-id="${item.id}" data-media-type="${item.media_type}">
-                            <img src="${poster}" alt="${title}" class="w-12 h-16 object-cover rounded shadow">
-                            <div class="text-left text-sm">
-                                <p class="font-semibold">${title}</p>
-                                <p class="text-gray-300">${year} • ${item.media_type === 'movie' ? '🎬 Movie' : '📺 TV'}</p>
+                    if (item.media_type === 'movie' || item.media_type === 'tv') {
+                        const title = item.title || item.name;
+                        const year = item.release_date ? item.release_date.substring(0, 4) : (item.first_air_date ? item.first_air_date.substring(0, 4) : 'N/A');
+                        const posterPath = item.poster_path ? `${tmdbSmallImageUrl}${item.poster_path}` : placeholderPosterUrl;
+                        
+                        searchListHtml += `
+                            <div class="search-item flex items-center gap-4 text-left p-2 border-b border-white/20 last:border-b-0" data-id="${item.id}" data-media-type="${item.media_type}">
+                                <img src="${posterPath}" alt="${title} Poster" class="w-12 h-18 rounded-sm">
+                                <div class="flex-1">
+                                    <p class="font-bold">${title}</p>
+                                    <p class="text-sm text-gray-300">(${year}) - ${item.media_type === 'movie' ? 'Movie' : 'TV Show'}</p>
+                                </div>
                             </div>
-                        </div>
-                    `;
+                        `;
+                    }
                 });
-                html += `</div>`;
-                searchResultsList.innerHTML = html;
-                toggleSearchResults(true);
+                searchListHtml += `</div>`;
+                searchResultsList.innerHTML = searchListHtml;
 
-                // Attach click handlers
                 document.querySelectorAll('.search-item').forEach(item => {
                     item.addEventListener('click', () => {
                         const id = item.dataset.id;
                         const mediaType = item.dataset.mediaType;
-                        fetchDetailsByTMDBId(id, mediaType);
-                        toggleSearchResults(false);
+                        if (id && mediaType) {
+                            fetchDetailsByTMDBId(id, mediaType);
+                            searchResultsList.innerHTML = ''; // Clear the search list after selection
+                        }
                     });
                 });
             }
 
             async function fetchDetailsByTMDBId(id, mediaType) {
                 resultsContainer.innerHTML = '';
-                displayMessage("Loading details...");
+                displayMessage("Fetching details...");
 
                 try {
-                    const response = await fetch(
-                        `https://api.themoviedb.org/3/${mediaType}/${id}?api_key=${apiKey}&language=en-US`
-                    );
-
+                    let response = await fetch(`https://api.themoviedb.org/3/${mediaType}/${id}?api_key=${apiKey}&language=en-US`);
+                    
                     if (response.status === 401) {
-                        displayMessage("❌ Auth failed. Check your TMDB API key.");
-                        return;
+                         displayMessage("Authentication failed. Please check your TMDB API key.");
+                         console.error('API Error: 401 Unauthorized. Check your API key.');
+                         return;
                     }
-
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-                    const item = await response.json();
-                    item.media_type = mediaType;
-                    displayMovieResult(item);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    let data = await response.json();
+                    
+                    if (data) {
+                        data.media_type = mediaType;
+                        displayMovieResult(data);
+                    } else {
+                        displayMessage("Details not available.");
+                    }
                 } catch (error) {
-                    console.error('Details error:', error);
-                    displayMessage("Could not load details.");
+                    console.error('Fetching error:', error);
+                    displayMessage("There was a problem fetching the details. Check your network or API key.");
                 }
             }
 
             function formatRuntime(runtime) {
-                if (!runtime) return 'N/A';
-                const mins = parseInt(runtime);
-                const hours = Math.floor(mins / 60);
-                const rem = mins % 60;
-                return `${hours ? hours + 'h ' : ''}${rem}min`.trim() || 'N/A';
+                if (!runtime || runtime === 0) return 'N/A';
+                const minutes = parseInt(runtime);
+                if (isNaN(minutes)) return runtime;
+                
+                const hours = Math.floor(minutes / 60);
+                const remainingMinutes = minutes % 60;
+                
+                let formattedString = '';
+                if (hours > 0) {
+                    formattedString += `${hours}h`;
+                }
+                if (remainingMinutes > 0 || hours > 0) {
+                    if (hours > 0) formattedString += ' ';
+                    formattedString += `${remainingMinutes}min`;
+                }
+                
+                return formattedString.trim() || 'N/A';
             }
 
             function displayMovieResult(item) {
                 messageContainer.innerHTML = '';
+                
+                const posterPath = item.poster_path ? `${tmdbLargeImageUrl}${item.poster_path}` : placeholderPosterUrl;
+                const backdropPath = item.backdrop_path ? `${tmdbBackdropUrl}${item.backdrop_path}` : placeholderBackdropUrl;
+                
                 const title = item.title || item.name;
                 const releaseDate = item.release_date || item.first_air_date || 'N/A';
-                const plot = item.overview || 'No plot available.';
-                const backdropPath = item.backdrop_path
-                    ? `${tmdbBackdropUrl}${item.backdrop_path}`
-                    : placeholderBackdropUrl;
-                const posterPath = item.poster_path
-                    ? `${tmdbLargeImageUrl}${item.poster_path}`
-                    : placeholderPosterUrl;
-
-                // Type-specific details
+                const plot = item.overview || 'No plot description available.';
+                
                 let detailsHtml = '';
                 if (item.media_type === 'movie') {
+                    const formattedRuntime = formatRuntime(item.runtime);
                     detailsHtml = `<p class="text-base text-gray-200 mb-4">
-                        <span class="font-bold">Runtime:</span> ${formatRuntime(item.runtime)}
-                    </p>`;
+                                    <span class="font-extrabold">Runtime:</span> ${formattedRuntime}
+                                </p>`;
                 } else if (item.media_type === 'tv') {
+                    const totalSeasons = item.number_of_seasons || 'N/A';
+                    const totalEpisodes = item.number_of_episodes || 'N/A';
                     detailsHtml = `<p class="text-base text-gray-200 mb-4">
-                        <span class="font-bold">Seasons:</span> ${item.number_of_seasons || 'N/A'} |
-                        <span class="font-bold">Episodes:</span> ${item.number_of_episodes || 'N/A'}
-                    </p>`;
+                                    <span class="font-extrabold">Total Seasons:</span> ${totalSeasons} |
+                                    <span class="font-extrabold">Total Episodes:</span> ${totalEpisodes}
+                                </p>`;
                 }
 
                 resultsContainer.innerHTML = `
-                    <div class="result-card p-5 shadow-xl border border-white/20" style="background-image: url('${backdropPath}');">
-                        <!-- Poster -->
-                        <div class="w-64 h-auto mx-auto mb-4 rounded-lg overflow-hidden shadow-2xl border border-white/30">
-                            <img src="${posterPath}" alt="${title}" class="w-full h-full object-cover" crossorigin="anonymous">
+                    <div id="poster-card" class="result-card p-4 shadow-lg border-white border" style="background-image: url('${backdropPath}')">
+                        <div class="w-72 h-auto overflow-hidden rounded-lg border border-white shadow-2xl mb-4 mx-auto">
+                            <img src="${posterPath}" alt="${title} Poster" class="w-full h-full object-cover" crossorigin="anonymous">
                         </div>
-
-                        <!-- Details -->
-                        <div class="text-left text-white">
-                            <h2 class="text-2xl font-bold mb-2">${title}</h2>
-                            <p class="text-sm text-gray-200 mb-3">
-                                <span class="font-bold">Released:</span> ${releaseDate} |
-                                <span class="font-bold">Type:</span> ${item.media_type === 'movie' ? 'Movie' : 'TV Show'}
+                        
+                        <div class="w-full">
+                            <h2 class="text-2xl font-extrabold mb-2">${title}</h2>
+                            <p class="text-sm text-gray-300 mb-2">
+                                <span class="font-extrabold">Released:</span> ${releaseDate}
+                                <span class="mx-2">|</span>
+                                <span class="font-extrabold">Type:</span> ${item.media_type === 'movie' ? 'Movie' : 'TV Show'}
                             </p>
+                            
                             ${detailsHtml}
-                            <p class="text-sm text-gray-200 leading-relaxed">
-                                <span class="font-bold block mb-1">Plot:</span>
-                                ${plot}
+                            
+                            <p class="text-sm text-gray-300 leading-snug">
+                                <span class="font-extrabold block mb-1">Plot:</span> ${plot}
                             </p>
 
-                            <!-- Suggestions -->
-                            <div id="suggestions-container" class="mt-4"></div>
+                            <div id="suggestions-container" class="mt-4 text-left"></div>
                         </div>
                     </div>
-
-                    <!-- Action Buttons -->
-                    <div class="flex flex-col sm:flex-row gap-3 mt-5">
-                        <button id="download-button" data-poster="${item.poster_path}"
-                                class="bg-neon-blue text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-teal-500 transition">
-                            📷 Download Poster
+                    <div class="flex flex-col sm:flex-row gap-4 mt-4">
+                        <button id="download-button" class="bg-neon-blue text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-teal-500 transition duration-300">
+                            Download Poster
                         </button>
-                        <button id="suggest-button"
-                                class="bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition">
-                            ✨ Suggest Similar
+                        <button id="suggest-button" class="bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            ✨ Suggest Similar Titles
                         </button>
                     </div>
                 `;
-
-                // Direct download of the full-sized poster
-                document.getElementById('download-button').addEventListener('click', (e) => {
-                    const posterPath = e.target.dataset.poster;
-                    if (posterPath) {
-                        const fullPosterUrl = `${tmdbOriginalImageUrl}${posterPath}`;
-                        downloadImageDirect(fullPosterUrl, `${title}_poster`);
+                
+                // Add event listener for download button
+                document.getElementById('download-button').addEventListener('click', () => {
+                    const posterCard = document.getElementById('poster-card');
+                    if (posterCard) {
+                        downloadPoster(posterCard, title);
                     }
                 });
 
-                // Gemini suggestions (if enabled)
+                // Add event listener for Gemini API button
                 document.getElementById('suggest-button').addEventListener('click', () => {
                     generateSimilarTitles(title, item.media_type);
                 });
             }
 
-            // ✅ Direct high-res image download (NO BLUR!)
-            function downloadImageDirect(imageUrl, filename) {
-                fetch(imageUrl, { mode: 'cors' })
-                    .then(response => response.blob())
-                    .then(blob => {
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `${filename}.jpg`;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-                    })
-                    .catch(err => {
-                        console.error('Download failed:', err);
-                        alert('Download failed. Try again or right-click the image to save.');
+            // Gemini API function to generate similar titles
+            async function generateSimilarTitles(title, mediaType) {
+                const suggestButton = document.getElementById('suggest-button');
+                const suggestionsContainer = document.getElementById('suggestions-container');
+                suggestButton.disabled = true;
+                suggestButton.innerHTML = '✨ Generating...';
+                suggestionsContainer.innerHTML = '';
+
+                try {
+                    const prompt = `Suggest 5 ${mediaType === 'movie' ? 'movies' : 'TV shows'} similar to "${title}". Provide only the titles, separated by commas.`;
+                    
+                    let chatHistory = [];
+                    chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+                    const payload = { contents: chatHistory };
+                    const geminiApiKey = ""
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${geminiApiKey}`;
+
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
                     });
+                    
+                    const result = await response.json();
+
+                    if (result.candidates && result.candidates.length > 0 &&
+                        result.candidates[0].content && result.candidates[0].content.parts &&
+                        result.candidates[0].content.parts.length > 0) {
+                        
+                        const text = result.candidates[0].content.parts[0].text;
+                        const titles = text.split(',').map(t => t.trim());
+                        let titlesHtml = `<p class="font-bold mb-2">Similar Titles:</p>`;
+                        titles.forEach(t => {
+                            titlesHtml += `<p>- ${t}</p>`;
+                        });
+                        suggestionsContainer.innerHTML = titlesHtml;
+                    } else {
+                        suggestionsContainer.innerHTML = `<p class="text-red-400">Could not generate suggestions.</p>`;
+                    }
+                } catch (error) {
+                    console.error('Gemini API Error:', error);
+                    suggestionsContainer.innerHTML = `<p class="text-red-400">An error occurred while fetching suggestions.</p>`;
+                } finally {
+                    suggestButton.disabled = false;
+                    suggestButton.innerHTML = '✨ Suggest Similar Titles';
+                }
             }
 
-            function displayMessage(msg) {
-                messageContainer.innerHTML = `<p class="text-gray-300">${msg}</p>`;
+            // Function to handle the screenshot and download
+            async function downloadPoster(element, filename) {
+                // Temporarily hide the buttons and other elements you don't want in the screenshot
+                const buttons = document.querySelectorAll('.flex.gap-4.mt-4');
+                buttons.forEach(button => button.style.display = 'none');
+            
+                // Create a temporary, full-size clone of the element to capture
+                const tempElement = document.createElement('div');
+                tempElement.className = element.className;
+                tempElement.style.cssText = element.style.cssText;
+                tempElement.innerHTML = element.innerHTML;
+                
+                document.body.appendChild(tempElement);
+            
+                html2canvas(tempElement, {
+                    useCORS: true,
+                    backgroundColor: null,
+                    scale: 2, // Use a higher scale for better resolution
+                }).then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = `${filename}_poster.png`;
+                    link.href = canvas.toDataURL('image/png');
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+            
+                    // Clean up: remove the temporary element and show original buttons
+                    document.body.removeChild(tempElement);
+                    buttons.forEach(button => button.style.display = 'flex');
+                }).catch(err => {
+                    console.error('Error during download:', err);
+                    alert('Error downloading poster. Please try again.');
+                    // Ensure buttons are shown even if there's an error
+                    buttons.forEach(button => button.style.display = 'flex');
+                    document.body.removeChild(tempElement);
+                });
+            }
+
+
+            function displayMessage(message) {
+                messageContainer.innerHTML = `<p class="text-lg text-gray-400 font-medium">${message}</p>`;
                 resultsContainer.innerHTML = '';
             }
 
-            // Event Listeners
             searchButton.addEventListener('click', () => {
-                fetchSearchResults(searchInput.value.trim());
-            });
-
-            searchInput.addEventListener('input', () => {
-                if (!searchInput.value.trim()) {
-                    toggleSearchResults(false);
+                const title = searchInput.value.trim();
+                if (title) {
+                    fetchSearchResults(title);
+                } else {
+                    displayMessage("Please enter a title.");
                 }
             });
 
             searchInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') searchButton.click();
-            });
-
-            // Close search dropdown on outside click
-            document.addEventListener('click', (e) => {
-                if (!searchInput.contains(e.target) && !searchResultsList.contains(e.target)) {
-                    toggleSearchResults(false);
+                if (e.key === 'Enter') {
+                    searchButton.click();
                 }
             });
-
-            function toggleSearchResults(show) {
-                searchResultsList.classList.toggle('hidden', !show);
-            }
         });
     </script>
 </body>
