@@ -245,7 +245,7 @@
                 }
 
                 resultsContainer.innerHTML = `
-                    <div id="poster-card" class="result-card p-4 shadow-lg border-white border" style="background-image: url('${backdropPath}')">
+                    <div id="full-poster-container" class="result-card p-4 shadow-lg border-white border" style="background-image: url('${backdropPath}')">
                         <div class="w-72 h-auto overflow-hidden rounded-lg border border-white shadow-2xl mb-4 mx-auto">
                             <img src="${posterPath}" alt="${title} Poster" class="w-full h-full object-cover" crossorigin="anonymous">
                         </div>
@@ -279,7 +279,7 @@
                 
                 // Add event listener for download button
                 document.getElementById('download-button').addEventListener('click', () => {
-                    const posterCard = document.getElementById('poster-card');
+                    const posterCard = document.getElementById('full-poster-container');
                     if (posterCard) {
                         downloadPoster(posterCard, title);
                     }
@@ -340,24 +340,27 @@
             }
 
             // Function to handle the screenshot and download
-            async function downloadPoster(element, filename) {
-                // Temporarily hide the buttons and other elements you don't want in the screenshot
-                const buttons = document.querySelectorAll('.flex.gap-4.mt-4');
-                buttons.forEach(button => button.style.display = 'none');
             
-                // Create a temporary, full-size clone of the element to capture
-                const tempElement = document.createElement('div');
-                tempElement.className = element.className;
-                tempElement.style.cssText = element.style.cssText;
-                tempElement.innerHTML = element.innerHTML;
-                
-                document.body.appendChild(tempElement);
-            
-                html2canvas(tempElement, {
-                    useCORS: true,
-                    backgroundColor: null,
-                    scale: 2, // Use a higher scale for better resolution
-                }).then(canvas => {
+async function downloadPoster(element, filename) {
+    const buttons = document.querySelectorAll('.flex.gap-4.mt-4');
+    buttons.forEach(button => button.style.display = 'none');
+
+    html2canvas(element, {
+        useCORS: true,
+        backgroundColor: null,
+        scale: 2
+    }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = `${filename}_poster.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        buttons.forEach(button => button.style.display = 'flex');
+    }).catch(err => {
+        console.error('Error during download:', err);
+        buttons.forEach(button => button.style.display = 'flex');
+    });
+}
+).then(canvas => {
                     const link = document.createElement('a');
                     link.download = `${filename}_poster.png`;
                     link.href = canvas.toDataURL('image/png');
